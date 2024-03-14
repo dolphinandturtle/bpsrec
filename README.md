@@ -15,6 +15,6 @@ applications.
 The Windows 11 platform is not yet supported.
 ## Arch Linux
 ```bash
-ln -s /home/user/$PROGRAM_PATH /usr/local/bin/bpsrec
+ln -s /home/user/$PROGRAM_PATH/bpsrec.py /usr/local/bin/bpsrec
 chmod +x /usr/local/bin/bpsrec
 ```

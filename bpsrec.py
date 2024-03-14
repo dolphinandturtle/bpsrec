@@ -9,10 +9,12 @@ from threading import Thread
 from dataclasses import dataclass, field
 
 
+# TODO: Move to rec.py file
 def get_file_bits(path: str) -> int:
     raw = check_output(['du', '-b', path], encoding='utf8')
     return int(raw.split('\t')[0])
 
+# TODO: Move to rec.py file
 def record(monitor_path, dump_path, delay_seconds, lifetime):
     time = 0
     bits_i = get_file_bits(monitor_path)
@@ -24,10 +26,10 @@ def record(monitor_path, dump_path, delay_seconds, lifetime):
             dump.write(str(round(time, 2)) + '\t' + str(bps) + '\n')
             dump.flush()
             time += delay_seconds
-            lifetime -= delay_seconds  # TODO: Fix lifetime
             sleep(delay_seconds)
-            if lifetime and lifetime - delay_seconds <= 0:
+            if (lifetime > 0 and lifetime - delay_seconds < 0):
                 break
+            lifetime -= delay_seconds
 
 
 @dataclass(slots=True, frozen=True)
@@ -136,6 +138,7 @@ def get_options(bindings) -> Options:
     while True:
         try:
             call = next(arguments)
+            # TODO: Turn this conditional to a switch statement (with dictionaries)
             if call in bindings.command_info:
                 set_info(bindings)
             elif call in bindings.dump_path:
@@ -192,7 +195,7 @@ def run(threads, options):
     exit()
 
 
-def main():
+if __name__ == "__main__":
     stdbingings = InterpreterBindings(
         command_info=frozenset(('-h', '-H', '--help')),
         dump_path=frozenset(('-o', '-o=', '--dump')),
@@ -205,6 +208,3 @@ def main():
     options = get_options(stdbingings)
     threads = get_threads(options)
     run(threads, options)
-
-if __name__ == "__main__":
-    main()
