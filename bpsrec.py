@@ -10,23 +10,40 @@ from cli import clifunc
 from cli import cli_run
 
 
-def main(mem):
-    is_child = not bool(fork()) if mem["background"] else True
+if __name__ != "__main__":
+    raise ImportError("This file cannot be imported as a python module.")
+
+
+def main():
+    name = "bpsrec"
+    args = iter(argv[1:])
+    fallback = bpsrec_monitor
+    memory={"monitors": [], "dumps": [], "delay": 60, "lifetime": -1,
+            "background": False, "verbose": False}
+    clifuncs=[bpsrec_dump, bpsrec_delay, bpsrec_lifetime, bpsrec_background,
+              bpsrec_test, bpsrec_verbose]
+
+    memory = cli_run(name, args, fallback, memory, clifuncs)
+
+    is_child = not bool(fork()) if memory["background"] else True
     if not is_child:
         print("[bpsrec] bpsrec is running in the background.")
         exit()
-    if mem["verbose"]:
-        print(mem)
+
+    if memory["verbose"]:
+        print(memory)
+
     try:
         threads = []
-        for monitor, dump in zip(mem["monitors"], mem["dumps"]):
-            args = (monitor, dump, mem["delay"], mem["lifetime"])
+        for monitor, dump in zip(memory["monitors"], memory["dumps"]):
+            args = (monitor, dump, memory["delay"], memory["lifetime"])
             threads.append(Thread(target=record, args=args, daemon=True))
             thread.start()
         [thread.join() for thread in threads]
     except KeyboardInterrupt:
         pass
-    for dump in mem["dumps"]:
+
+    for dump in memory["dumps"]:
         print(f"[bpsrec] Gracefully exited. Dump file '{dump}' generated.")
     exit()
 
@@ -116,16 +133,4 @@ def bpsrec_verbose(call, args, mem):
 bpsrec_verbose.bindings += ['-v', '--verbose']
 
 
-if __name__ != "__main__":
-    raise ImportError("This file cannot be imported as a python module.")
-
-memory = cli_run(
-    name="bpsrec",
-    args=iter(argv[1:]),
-    fallback=bpsrec_monitor,
-    memory={"monitors": [], "dumps": [], "delay": 60, "lifetime": -1,
-            "background": False, "verbose": False},
-    clifuncs=[bpsrec_dump, bpsrec_delay, bpsrec_lifetime, bpsrec_background,
-              bpsrec_test, bpsrec_verbose])
-
-main(memory)
+main()  # Used for forward declaration
