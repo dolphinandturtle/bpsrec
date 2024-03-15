@@ -4,6 +4,8 @@ from threading import Thread
 from sys import argv
 from os import fork
 from os.path import exists
+from pickle import dump as pdump
+from pickle import load as pload
 
 from core import record
 from cli import clifunc
@@ -15,7 +17,7 @@ if __name__ != "__main__":
 
 
 def main():
-    name = "bpsrec"
+
     args = iter(argv[1:])
     fallback = bpsrec_monitor
     memory={"monitors": [], "dumps": [], "delay": 60, "lifetime": -1,
@@ -23,7 +25,15 @@ def main():
     clifuncs=[bpsrec_dump, bpsrec_delay, bpsrec_lifetime, bpsrec_background,
               bpsrec_test, bpsrec_verbose]
 
-    memory = cli_run(name, args, fallback, memory, clifuncs)
+    continuing = False
+    if exists(".bpsrec.save"):
+        continuing = not input("[bpsrec] Previous session deteced. "
+                               "Want to continue? [Y/n]") in {'n', 'N'}
+        if continuing:
+            memory = pload(open(".bpsrec.save", 'rb'))
+            
+    if not continuing:
+        memory = cli_run(args, memory, fallback, clifuncs)
 
     is_child = not bool(fork()) if memory["background"] else True
     if not is_child:
@@ -37,18 +47,22 @@ def main():
         threads = []
         for monitor, dump in zip(memory["monitors"], memory["dumps"]):
             args = (monitor, dump, memory["delay"], memory["lifetime"])
-            threads.append(Thread(target=record, args=args, daemon=True))
+            thread = Thread(target=record, args=args, daemon=True)
+            threads.append(thread)
             thread.start()
         [thread.join() for thread in threads]
     except KeyboardInterrupt:
         pass
+
+    if not input("[bpsrec] Do you want to continue later? [Y/n] ") in {'n', 'N'}:
+        pdump(memory, open(".bpsrec.save", 'wb'))
 
     for dump in memory["dumps"]:
         print(f"[bpsrec] Gracefully exited. Dump file '{dump}' generated.")
     exit()
 
 
-@clifunc
+@clifunc(tooltip="", bindings=[])
 def bpsrec_monitor(call, args, mem):
     path = str(call)
     if not exists(path):
@@ -59,7 +73,7 @@ def bpsrec_monitor(call, args, mem):
         mem["dumps"].append(path + '.bpsrec')
 
 
-@clifunc
+@clifunc(tooltip="", bindings=['-o', '--output'])
 def bpsrec_dump(call, args, mem):
     try:
         if mem["dumps"]:
@@ -69,10 +83,8 @@ def bpsrec_dump(call, args, mem):
         print("[bpsrec] The dump option expects a path.")
         exit()
 
-bpsrec_dump.bindings += ['-o', '--output']
 
-
-@clifunc
+@clifunc(tooltip="", bindings=['-d', '--delay'])
 def bpsrec_delay(call, args, mem):
     try:
         mem["delay"] = float(next(args))
@@ -80,10 +92,8 @@ def bpsrec_delay(call, args, mem):
         print("[bpsrec] The delay options expects a numeric.")
         exit()
 
-bpsrec_delay.bindings += ['-d', '--delay']
 
-
-@clifunc
+@clifunc(tooltip="", bindings=['-D', '--duration'])
 def bpsrec_lifetime(call, args, mem):
     try:
         mem["lifetime"] = float(next(args))
@@ -91,10 +101,8 @@ def bpsrec_lifetime(call, args, mem):
         print("[bpsrec] The lifetime options expects a numeric.")
         exit()
 
-bpsrec_lifetime.bindings += ['-D', '--duration']
 
-
-@clifunc
+@clifunc(tooltip="", bindings=['-B', '--background'])
 def bpsrec_background(call, args, mem):
     mem["background"] = True
     try:
@@ -107,10 +115,8 @@ def bpsrec_background(call, args, mem):
                   "Or previously specified non-negative lifetime.")
             exit()
 
-bpsrec_background.bindings += ['-B', '--background']
 
-
-@clifunc
+@clifunc(tooltip="", bindings=['--test'])
 def bpsrec_test(call, args, mem):
     if input("[bpsrec] Enter test mode?",
              "This will last 15 seconds. [y/N] ") in ["y", "Y"]:
@@ -123,14 +129,10 @@ def bpsrec_test(call, args, mem):
     file = open('monitor.test', 'w')
     file.close()
 
-bpsrec_test.bindings += ['--test']
 
-
-@clifunc
+@clifunc(tooltip="", bindings=['-v', '--verbose'])
 def bpsrec_verbose(call, args, mem):
     mem["verbose"] = True
-
-bpsrec_verbose.bindings += ['-v', '--verbose']
 
 
 main()  # Used for forward declaration

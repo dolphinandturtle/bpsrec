@@ -4,15 +4,17 @@ from typing import Callable, Dict, Any
 
 CliFunc = Callable[[str, iter, Dict[str, Any]], None]
 
-def clifunc(func):
-    @wraps(func)
-    def wrapper(call, args, memory):
-        return func(call, args, memory)
-    wrapper.tooltip = "This function hasn't been documented yet."
-    wrapper.bindings = []
-    return wrapper
+def clifunc(tooltip, bindings):
+    def _clifunc(func):
+        @wraps(func)
+        def wrapper(call, args, memory):
+            return func(call, args, memory)
+        wrapper.tooltip = tooltip
+        wrapper.bindings = bindings
+        return wrapper
+    return _clifunc
 
-def cli_run(name: str, args: iter, memory: Dict[str, Any], fallback: CliFunc,
+def cli_run(args: iter, memory: Dict[str, Any], fallback: CliFunc,
             clifuncs: list[CliFunc]):
     info = '\n'.join([
         f"{index}.  ({', '.join(func.bindings)}) {func.tooltip}"
@@ -31,8 +33,8 @@ def cli_run(name: str, args: iter, memory: Dict[str, Any], fallback: CliFunc,
     except StopIteration:
         pass
     if not arglen:
-        if input(f"[{name}] No arguments have been given. "
-                 "Need help? [y/N] ") in {'y', 'Y'}:
+        if input(f"No arguments have been given. "
+                 f"Need help? [y/N] ") in {'y', 'Y'}:
             print(info)
         exit()
     return memory
