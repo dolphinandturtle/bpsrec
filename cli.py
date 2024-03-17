@@ -1,6 +1,8 @@
 from functools import wraps
 from typing import Callable, Dict, Any
 
+QUERY_NO_ARGUMENTS_HELP = "No arguments have been given. Need help? [y/N] "
+
 
 CliFunc = Callable[[str, iter, Dict[str, Any]], None]
 
@@ -14,13 +16,21 @@ def clifunc(tooltip, bindings):
         return wrapper
     return _clifunc
 
-def cli_run(args: iter, memory: Dict[str, Any], fallback: CliFunc,
-            clifuncs: list[CliFunc]):
-    info = '\n'.join([
+
+def get_info(clifuncs: list[CliFunc]):
+    return '\n'.join([
         f"{index}.  ({', '.join(func.bindings)}) {func.tooltip}"
         for index, func in enumerate(clifuncs)])
-    bindings = {bind: func for func in clifuncs for bind in func.bindings}
+
+
+def get_global_bindings(clifuncs: list[CliFunc]):
+    return {bind: func for func in clifuncs for bind in func.bindings}
+
+
+def cli_run(args: iter, memory: Dict[str, Any], fallback: CliFunc,
+            clifuncs: list[CliFunc]):
     arglen = 0
+    bindings = get_global_bindings(clifuncs)
     try:
         while True:
             call = next(args)
@@ -33,8 +43,7 @@ def cli_run(args: iter, memory: Dict[str, Any], fallback: CliFunc,
     except StopIteration:
         pass
     if not arglen:
-        if input(f"No arguments have been given. "
-                 f"Need help? [y/N] ") in {'y', 'Y'}:
-            print(info)
+        if input(QUERY_NO_ARGUMENTS_HELP) in {'y', 'Y'}:
+            print(get_info(clifuncs))
         exit()
     return memory

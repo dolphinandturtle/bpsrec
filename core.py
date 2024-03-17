@@ -1,23 +1,26 @@
+from os.path import getsize
 from time import sleep
-from subprocess import check_output
 
 
-def get_file_bits(path: str) -> int:
-    raw = check_output(['du', '-b', path], encoding='utf8')
-    return int(raw.split('\t')[0])
+def get_dbytes(file_path: str, delay: float) -> int:
+    initial_bytes = getsize(file_path)
+    sleep(delay)
+    final_bytes = getsize(file_path) - initial_bytes
+    return final_bytes
 
-def record(monitor_path, dump_path, delay_seconds, lifetime):
-    time = 0
-    bits_i = get_file_bits(monitor_path)
-    with open(dump_path, 'a') as dump:
-        while True:
-            bits_f = get_file_bits(monitor_path)
-            bps = round((bits_f - bits_i) / delay_seconds, 2)
-            bits_i = bits_f
-            dump.write(str(round(time, 2)) + '\t' + str(bps) + '\n')
-            dump.flush()
-            time += delay_seconds
-            sleep(delay_seconds)
-            if (lifetime > 0 and lifetime - delay_seconds < 0):
-                break
-            lifetime -= delay_seconds
+
+def get_bytes_per_second(file_path: str, delay: float) -> float:
+    return float(get_dbytes(file_path, delay)) / delay
+
+
+def monitor_bytes_per_second(file_path: str, output_file: str, delay: float,
+                             duration: float, initial_time: float) -> None:
+    time = initial_time
+    dump = open(output_file, 'a')
+    dump.write(f"{time:.2f}\t0.00\n")
+    while not (time <= duration <= time + delay):
+        speed = get_bytes_per_second(file_path, delay)
+        time += delay
+        dump.write(f"{time:.2f}\t{speed:.2f}\n")
+        dump.flush()
+    dump.close()
