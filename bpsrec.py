@@ -1,5 +1,6 @@
 #!/usr/bin/env -S python3 -BO
 
+from datetime import datetime
 from threading import Thread
 from sys import argv
 from os import fork
@@ -16,6 +17,7 @@ from cli import cli_run
 if __name__ != "__main__":
     raise ImportError("This file cannot be imported as a python module.")
 
+today = datetime.now()
 
 FILE = "FILE"
 QUERY_PAUSE_SESSION = "[bpsrec] Do you want to pause this session for later? [Y/n] "
@@ -33,6 +35,7 @@ TOOLTIP_DELAY = "Specify the temporale delay inbetween samplings in seconds."
 TOOLTIP_DURATION = "Specify the duration of the program in seconds."
 TOOLTIP_TEST = "This option is for development. Test out the program for 15 seconds, edit the generated 'monitor.test' file."
 TOOLTIP_VERBOSE = "This option is for development. Get program memory dump."
+TOOLTIP_SYNCHRONIZE = "Synchronize the recorded time with real-world time."
 
 BINDINGS_MONITOR = []
 BINDINGS_DUMP = ['-o', '--output']
@@ -40,6 +43,7 @@ BINDINGS_DELAY = ['-d', '--delay']
 BINDINGS_DURATION = ['-D', '--duration']
 BINDINGS_TEST = ['--test']
 BINDINGS_VERBOSE = ['-v', '--verbose']
+BINDINGS_SYNCHRONIZE = ['-s', '--synch', '--synchronize']
 
 MONITORS = "monitors"
 DUMPS = "dumps"
@@ -59,7 +63,7 @@ def main():
     memory={MONITORS: [], DUMPS: [], DELAY: 60, DURATION: -1, TIME: 0,
             VERBOSE: False}
     clifuncs=[bpsrec_dump, bpsrec_delay, bpsrec_duration,
-              bpsrec_test, bpsrec_verbose]
+              bpsrec_test, bpsrec_verbose, bpsrec_synchronize]
 
     previous_session = False
     if exists(SAVEFILE):
@@ -67,7 +71,7 @@ def main():
             memory = pload(open(SAVEFILE, 'rb'))
             previous_session = True
 
-    if not previous_session:
+    if not reload_memory(memory, SAVEFILE):
         memory = cli_run(args, memory, fallback, clifuncs)
 
     if memory[VERBOSE]:
@@ -79,14 +83,9 @@ def main():
         [thread.join() for thread in threads]
     except KeyboardInterrupt:
         if input(QUERY_PAUSE_SESSION) not in {'n', 'N'}:
-            with open(memory[DUMPS][0], 'r') as dump:
-                data = dump.read().split('\n')
-                line = list(filter(lambda item: item, data))[-1]
-                memory[TIME] = float(line.split('\t')[0]) + memory[DELAY]
-            pdump(memory, open(SAVEFILE, 'wb'))
+            archive_memory(memory, SAVEFILE)
         elif exists(SAVEFILE):
             remove(SAVEFILE)
-
     for dump in memory[DUMPS]:
         print(MESSAGE_GRACEFUL_EXIT.replace(FILE, dump))
     exit()
@@ -99,6 +98,21 @@ def get_threads(memory) -> list[Thread]:
         args = (monitor, dump, memory[DELAY], memory[DURATION], memory[TIME])
         threads.append(Thread(target=target, args=args, daemon=True))
     return threads
+
+def reload_memory(memory, save) -> bool:
+    if exists(save):
+        if input(QUERY_CONTINUE_SESSION) not in {'n', 'N'}:
+            memory = pload(open(save, 'rb'))
+            return True
+    else:
+        return False
+
+def archive_memory(memory, save) -> None:
+    with open(memory[DUMPS][0], 'r') as dump:
+        data = dump.read().split('\n')
+        line = list(filter(lambda item: item, data))[-1]
+        memory[TIME] = float(line.split('\t')[0]) + memory[DELAY]
+    pdump(memory, open(save, 'wb'))
 
 
 @clifunc(TOOLTIP_MONITOR, BINDINGS_MONITOR)
@@ -140,18 +154,21 @@ def bpsrec_duration(call, args, mem):
 
 @clifunc(TOOLTIP_TEST, BINDINGS_TEST)
 def bpsrec_test(call, args, mem):
-    if input(QUERY_TEST_MODE) in {"y", "Y"}:
+    if input(QUERY_TEST_MODE) not in {"y", "Y"}:
         return
+    mem[DURATION] = 15
     mem[MONITORS].append("monitor.test")
     mem[DUMPS].append("dump.test")
-    mem[DELAY] = 1
-    mem[DURATION] = 15
     file = open('monitor.test', 'w')
     file.close()
 
 @clifunc(TOOLTIP_VERBOSE, BINDINGS_VERBOSE)
 def bpsrec_verbose(call, args, mem):
     mem[VERBOSE] = True
+
+@clifunc(TOOLTIP_SYNCHRONIZE, BINDINGS_SYNCHRONIZE)
+def bpsrec_synchronize(call, args, mem):
+    mem[TIME] = today.hour * 60**2 + today.minute * 60 + today.second
 
 
 main()  # Used for forward declaration
